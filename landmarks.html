@@ -245,6 +245,10 @@
 
       <!-- Filter bar with more neighborhoods -->
       <div class="filter-bar">
+        <button class="filter-button" onclick="filterLandmarks('Nearby')">
+          Nearby
+          
+        </button>
         <button class="filter-button" onclick="filterLandmarks('Little Italy')">
           Little Italy
         </button>
@@ -283,8 +287,165 @@
     <script>
       let activeFilter = "";
 
+      // Google Maps API variables
+      let map, service;
+      let googleMapsLoaded = false;
+
+      // Load Google Maps API dynamically
+      function loadGoogleMapsAPI() {
+        console.log('🗺️ Starting Google Maps API load...');
+        if (window.google) {
+          console.log('✅ Google Maps already loaded');
+          googleMapsLoaded = true;
+          return Promise.resolve();
+        }
+        
+        return new Promise((resolve, reject) => {
+          const apiKey = 'AIzaSyB4ajqE4KSt48Pc8m83C4xaLkby6XyGJVg';
+          const script = document.createElement('script');
+          script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=initGoogleMaps`;
+          script.async = true;
+          script.defer = true;
+          
+          console.log('📡 Loading Google Maps from:', script.src);
+          
+          window.initGoogleMaps = () => {
+            console.log('✅ Google Maps API loaded successfully');
+            googleMapsLoaded = true;
+            initializeGoogleMaps();
+            resolve();
+          };
+
+          script.onerror = reject;
+          document.head.appendChild(script);
+        });
+      }
+
+      // Initialize Google Maps service
+      function initializeGoogleMaps() {
+        console.log('🔧 Initializing Google Maps service...');
+        // Get user coordinates from localStorage
+        const userCoords = JSON.parse(localStorage.getItem("currentUserCoords"));
+        console.log('📍 User coordinates:', userCoords);
+        
+        // Use user's location if available, otherwise fallback to Chicago center
+        const mapCenter = userCoords
+          ? { lat: userCoords.lat, lng: userCoords.lng }
+          : { lat: 41.8781, lng: -87.6298 };
+        
+        console.log('🗺️ Map center:', mapCenter);
+        
+        map = new google.maps.Map(document.createElement('div'), {
+          center: mapCenter,
+          zoom: 13
+        });
+        service = new google.maps.places.Place(map);
+        console.log('✅ Google Maps service initialized');
+      }
+
+      function fetchNearbyPlaces(userCoords) {
+        return new Promise((resolve, reject) => {
+        if (!googleMapsLoaded || !service) {
+          const error = 'Google Maps not loaded or service not initialized';
+          console.error('❌', error);
+          reject(error);
+          return;
+        }
+
+        const request = {
+          location: new google.maps.LatLng(userCoords.lat, userCoords.lng),
+          radius: 2000, // 2km radius
+          type: 'point_of_interest' // General points of interest
+        };
+
+        console.log('📡 Making nearby search request:', request);
+
+        service.nearbySearch(request, (results, status) => {
+          console.log('📨 Nearby search response status:', status);
+          if (status === google.maps.places.PlaceStatus.OK) {
+            // Take first 30 results
+            const places = results.slice(0, 30);
+            console.log('✅ Found', places.length, 'nearby places');
+            resolve(places);
+          } else {
+            const error = `Places API error: ${status}`;
+            console.error('❌', error);
+            reject(error);
+          }
+        });
+      });
+    }
+
+    function convertPlacesToLandmarks(places, userCoords) {
+      return places.map((place, index) => {
+        // Get the photo reference if available
+        const photoUrl = place.photos && place.photos[0] 
+          ? place.photos[0].getUrl({ maxWidth: 400, maxHeight: 300 })
+          : `https://via.placeholder.com/400x300?text=${encodeURIComponent(place.name)}`;
+        
+        return {
+          id: `nearby_${Date.now()}_${index}`,
+          neighborhood: "Nearby",
+          name: place.name,
+          image: photoUrl,
+          description: `A nearby point of interest located ${calculateDistance(
+            userCoords.lat,
+            userCoords.lng,
+            place.geometry.location.lat(),
+            place.geometry.location.lng()
+          ).toFixed(1)} miles away.`,
+          coordinates: [
+            place.geometry.location.lat(),
+            place.geometry.location.lng()
+          ],
+          locked: true,
+          googlePlaceId: place.place_id,
+          rating: place.rating || null,
+          types: place.types || [],
+          addedDate: new Date().toISOString()
+        };
+      });
+    }
+
+    function extractNeighborhood(addressComponents) {
+      // Look for neighborhood in the address components
+      for (const component of addressComponents) {
+        if (component.types.includes('neighborhood') || 
+            component.types.includes('sublocality_level_1') ||
+            component.types.includes('sublocality')) {
+          return component.long_name;
+        }
+      }
+      
+      // Fallback to locality (city) if no neighborhood found
+      for (const component of addressComponents) {
+        if (component.types.includes('locality')) {
+          return component.long_name;
+        }
+      }
+      
+      return 'Unknown';
+    }
+
+    function determineNeighborhood(userCoords){
+      return new Promise((resolve, reject) => {
+        const geocoder = new google.maps.Geocoder();
+        geocoder.geocode({ location: { lat: userCoords.lat, lng: userCoords.lng } }, (results, status) => {
+          if (status === 'OK') {
+            const neighborhood = extractNeighborhood(results[0].address_components);
+            resolve(neighborhood);
+          } else {
+            reject(`Geocoding failed: ${status}`);
+          }
+        });
+      });
+    }
+
       // Fetch and display landmarks from an external JSON file
       document.addEventListener("DOMContentLoaded", () => {
+        // Get user coordinates
+        const userCoords = JSON.parse(localStorage.getItem("currentUserCoords"));
+
         fetch("landmarks.JSON")
           .then((response) => response.json())
           .then((landmarks) => {
@@ -292,13 +453,31 @@
             updateLandmarkCounter(landmarks); // Initial count
           })
           .catch((error) => console.error("Error loading landmarks:", error));
+            
+            // 1. Load Google Maps API
+            loadGoogleMapsAPI()
+              .then(() => {
+                // 2. Fetch nearby places from Google
+                return fetchNearbyPlaces(userCoords);
+              })
+              .then(places => {
+                // 3. Convert Google places to your landmark format
+                const landmarks = convertPlacesToLandmarks(places, userCoords);
+                localStorage.setItem('nearby-landmarks', JSON.stringify(landmarks));
+              })
+              .then(neighborhood => {
+                console.log('📍 User neighborhood:', determineNeighborhood(userCoords));
+              })
+              .catch(error => console.error("Error fetching nearby places:", error));
+
       });
 
       function displayLandmarks(landmarks) {
         const contentDiv = document.querySelector(".content");
         contentDiv.innerHTML = ""; // Clear existing landmarks
 
-        const userCoords = { lat: 41.93968402905355, lng: -87.65444127116459 }; // Replace with actual user location
+        const userCoords = JSON.parse(localStorage.getItem("currentUserCoords"));
+
 
         landmarks.forEach((landmark) => {
           // Filter landmarks based on active filter
@@ -440,15 +619,37 @@
             button.style.color = "#fff";
           }
         });
-
-        // Fetch and display landmarks again based on the filter
-        fetch("landmarks.JSON")
+        if(neighborhood === "Nearby"){
+          console.log('🔍 Nearby filter selected - checking localStorage...');
+          // Load and display nearby landmarks from localStorage
+          const nearbyLandmarksData = localStorage.getItem('nearby-landmarks');
+          if (nearbyLandmarksData) {
+            try {
+              const landmarks = JSON.parse(nearbyLandmarksData);
+              console.log('✅ Found', landmarks.length, 'nearby landmarks in localStorage');
+              displayLandmarks(landmarks);
+              updateLandmarkCounter(landmarks);
+            } catch (error) {
+              console.error("Error parsing nearby landmarks from localStorage:", error);
+            }
+          } else {
+            console.log("❌ No nearby landmarks found in localStorage. Please wait for location services to load nearby places.");
+            // Debug what's actually in localStorage
+            debugNearbyLandmarks();
+            // Optionally display a message to the user
+            document.querySelector(".content").innerHTML = "<p>Loading nearby landmarks... Please ensure location services are enabled.</p>";
+          }
+        }
+        else{
+          // Fetch and display landmarks again based on the filter
+          fetch("landmarks.JSON")
           .then((response) => response.json())
           .then((landmarks) => {
             displayLandmarks(landmarks);
             updateLandmarkCounter(landmarks); // Update count for filtered view
           })
           .catch((error) => console.error("Error loading landmarks:", error));
+        }
       }
 
       function resetFilter() {
@@ -469,6 +670,31 @@
 
       function unlockLandmark(landmarkElement) {
         landmarkElement.setAttribute("data-locked", "false");
+      }
+
+      // Debug function to check localStorage data
+      function debugNearbyLandmarks() {
+        console.log('=== DEBUGGING NEARBY LANDMARKS ===');
+        const nearbyData = localStorage.getItem('nearby-landmarks');
+        
+        if (nearbyData) {
+          console.log('Raw localStorage data:', nearbyData);
+          try {
+            const parsed = JSON.parse(nearbyData);
+            console.log('Parsed landmarks count:', parsed.length);
+            console.log('First landmark:', parsed[0]);
+            console.log('All landmarks:', parsed);
+          } catch (error) {
+            console.error('Error parsing localStorage data:', error);
+          }
+        } else {
+          console.log('No nearby-landmarks found in localStorage');
+        }
+        
+        // Also check user coordinates
+        const userCoords = localStorage.getItem('currentUserCoords');
+        console.log('User coordinates:', userCoords);
+        console.log('=== END DEBUG ===');
       }
     </script>
   </body>

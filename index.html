@@ -613,7 +613,9 @@
         };
 
         localStorage.setItem("userProgress", JSON.stringify(progressData));
+        localStorage.setItem("currentUserCoords", JSON.stringify(userCoords));
       }
+
       function loadProgress() {
         const savedProgress = localStorage.getItem("userProgress");
         if (savedProgress) {
