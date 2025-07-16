@@ -303,7 +303,8 @@
         return new Promise((resolve, reject) => {
           const apiKey = 'AIzaSyB4ajqE4KSt48Pc8m83C4xaLkby6XyGJVg';
           const script = document.createElement('script');
-          script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=initGoogleMaps`;
+          //Changed API link
+          script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&loading=async&libraries=places&callback=initGoogleMaps`;
           script.async = true;
           script.defer = true;
           
@@ -339,7 +340,8 @@
           center: mapCenter,
           zoom: 13
         });
-        service = new google.maps.places.Place(map);
+        //Bugs???
+        service = new google.maps.places.PlacesService(map);
         console.log('✅ Google Maps service initialized');
       }
 
@@ -362,7 +364,7 @@
 
         service.nearbySearch(request, (results, status) => {
           console.log('📨 Nearby search response status:', status);
-          if (status === google.maps.places.PlaceStatus.OK) {
+          if (status === google.maps.places.PlacesServiceStatus.OK) {
             // Take first 30 results
             const places = results.slice(0, 30);
             console.log('✅ Found', places.length, 'nearby places');
