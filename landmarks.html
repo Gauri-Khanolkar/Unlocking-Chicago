@@ -493,14 +493,19 @@
           landmarkItem.dataset.neighborhood = landmark.neighborhood;
           landmarkItem.dataset.locked = landmark.locked;
 
-          const neighborhoodFolder = landmark.neighborhood.replace(/\s+/g, ""); // Remove spaces
-          const imagePath = `images/${neighborhoodFolder}/${landmark.image}`;
-
           // Create the landmark image
           const img = document.createElement("img");
-          img.src = imagePath;
           img.alt = landmark.name;
           img.classList.add("landmark-photo");
+
+          if(landmark.neighborhood === "Nearby"){
+            img.src = landmark.image;
+          }
+          else{
+            const neighborhoodFolder = landmark.neighborhood.replace(/\s+/g, ""); // Remove spaces
+            const imagePath = `images/${neighborhoodFolder}/${landmark.image}`;
+            img.src = imagePath;
+          }
 
           // Create the landmark name
           const nameDiv = document.createElement("div");
