@@ -442,11 +442,12 @@
         });
       });
     }
-
+    let calledFetch = sessionStorage.getItem('nearbyDataFetched') === 'true';
       // Fetch and display landmarks from an external JSON file
       document.addEventListener("DOMContentLoaded", () => {
         // Get user coordinates
         const userCoords = JSON.parse(localStorage.getItem("currentUserCoords"));
+        
 
         fetch("landmarks.JSON")
           .then((response) => response.json())
@@ -457,9 +458,12 @@
           .catch((error) => console.error("Error loading landmarks:", error));
             
             // 1. Load Google Maps API
-            loadGoogleMapsAPI()
+            if(calledFetch === false){
+              loadGoogleMapsAPI()
               .then(() => {
                 // 2. Fetch nearby places from Google
+                sessionStorage.setItem('nearbyDataFetched', 'true');
+                console.log('🔍 Fetching nearby places from Google Maps...');
                 return fetchNearbyPlaces(userCoords);
               })
               .then(places => {
@@ -471,6 +475,7 @@
                 console.log('📍 User neighborhood:', determineNeighborhood(userCoords));
               })
               .catch(error => console.error("Error fetching nearby places:", error));
+            }
 
       });
 
@@ -627,6 +632,39 @@
           }
         });
         if(neighborhood === "Nearby"){
+          if (!document.getElementById('refresh-button')) {
+            const refreshButton = document.createElement('button');
+            refreshButton.id = 'refresh-button';
+            const refreshIcon = document.createElement('img');
+            refreshIcon.src = 'images/refresh-icon.png';
+            refreshIcon.style.width = '16px';
+            refreshIcon.style.height = '16px';
+            refreshButton.appendChild(refreshIcon);
+            refreshButton.className = 'filter-button';
+            refreshButton.onclick = () => {
+              console.log('🔄 Refreshing nearby landmarks...');
+              // Clear existing nearby landmarks
+              // localStorage.removeItem('nearby-landmarks');
+              const userCoords = JSON.parse(localStorage.getItem("currentUserCoords"));
+              loadGoogleMapsAPI()
+              .then(() => {
+                // 2. Fetch nearby places from Google
+                sessionStorage.setItem('nearbyDataFetched', 'true');
+                console.log('🔍 Fetching nearby places from Google Maps...');
+                return fetchNearbyPlaces(userCoords);
+              })
+              .then(places => {
+                // 3. Convert Google places to your landmark format
+                const landmarks = convertPlacesToLandmarks(places, userCoords);
+                localStorage.setItem('nearby-landmarks', JSON.stringify(landmarks));
+              })
+              .then(neighborhood => {
+                console.log('📍 User neighborhood:', determineNeighborhood(userCoords));
+              })
+              .catch(error => console.error("Error fetching nearby places:", error));
+            };
+            document.querySelector(".filter-bar").prepend(refreshButton);
+          }
           console.log('🔍 Nearby filter selected - checking localStorage...');
           // Load and display nearby landmarks from localStorage
           const nearbyLandmarksData = localStorage.getItem('nearby-landmarks');
@@ -648,7 +686,10 @@
           }
         }
         else{
-          // Fetch and display landmarks again based on the filter
+          if (document.getElementById('refresh-button')) {
+            const refreshButton = document.getElementById('refresh-button');
+            refreshButton.remove(); // Remove the refresh button if not in Nearby filter
+          }
           fetch("landmarks.JSON")
           .then((response) => response.json())
           .then((landmarks) => {
