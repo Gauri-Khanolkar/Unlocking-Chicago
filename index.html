@@ -561,7 +561,7 @@
 
       // Handle user location detection
       map.on("locationfound", (e) => {
-        //userCoords = { lat: e.latlng.lat, lng: e.latlng.lng };
+        // userCoords = { lat: e.latlng.lat, lng: e.latlng.lng };
         userCoords = { lat: 41.881177488005335, lng: -87.63239945651894 };
         map.setView([userCoords.lat, userCoords.lng], 17); // Center map on user
         updateUserLocationMarker();
@@ -622,7 +622,16 @@
           const progressData = JSON.parse(savedProgress);
 
           // Restore explored areas
-          exploredAreas = progressData.exploredAreas;
+          // exploredAreas = progressData.exploredAreas;
+          // Restore explored areas
+          if (progressData.exploredAreas && 
+              typeof progressData.exploredAreas === 'object' && 
+              Array.isArray(progressData.exploredAreas.features)) {
+            exploredAreas = progressData.exploredAreas;
+          } else {
+            console.warn('Invalid exploredAreas in saved data, resetting to empty');
+            exploredAreas = { type: "FeatureCollection", features: [] };
+          }
           explorationLayer.clearLayers();
           explorationLayer.addData(exploredAreas);
 
