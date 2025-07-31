@@ -202,6 +202,7 @@
         vertical-align: middle;
         padding: 0;
         width: 50px;
+        pointer-events: auto;
       }
 
       .landmark-item[data-locked="true"]::after {
@@ -546,7 +547,8 @@
             goButton.classList.add("landmark-go-button");
             goButton.onclick = () => {
               const query = `?lat=${landmark.coordinates[0]}&lng=${landmark.coordinates[1]}`;
-              window.location.href = `compass.html${query}`;
+              // window.location.href = `compass.html${query}`;
+              window.location.href = `navigate.html${query}`;
             };
 
             // Append distance and button to the container
@@ -559,7 +561,7 @@
             // Blur image and add locked label
             /*img.style.filter = "blur(5px)";*/
             nameDiv.style.visibility = "hidden";
-            landmarkItem.style.pointerEvents = "none"; // Prevent interaction
+            // landmarkItem.style.pointerEvents = "none"; // Prevent interaction
           } else {
             // Add onclick event to navigate to detailed page
             landmarkItem.onclick = () => {
