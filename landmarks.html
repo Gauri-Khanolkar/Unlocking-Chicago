@@ -41,6 +41,8 @@
         flex-direction: column;
       }
 
+      
+
       /* Header */
       .header {
         height: 90px;
@@ -63,6 +65,30 @@
         text-decoration: none;
         position: absolute;
         left: 15px;
+      }
+
+      /* Search bar */
+      .toorbar{
+        padding: 10px;
+      }
+      .toolbar input{
+        margin-left: 10px;
+        display: block;
+        width: 90%;
+        padding: 6px 10px;
+        border-radius: 4px;
+        border: 1px solid #3a3a3a;
+      }
+
+      /* Distance filter */
+      .distance-filter{
+        padding: 10px;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .distance-filter input{
+        width: 60px;
       }
 
       /* Filter bar */
@@ -113,6 +139,8 @@
       }
 
       /* Content area */
+
+
       .content {
         padding: 10px;
         flex-grow: 1;
@@ -220,9 +248,11 @@
         position: relative;
         pointer-events: none; /* Prevent interaction */
       }
+
     </style>
   </head>
   <body>
+
     <svg class="hideSvgSoThatItSupportsFirefox">
       <filter id="sharpBlur">
         <feGaussianBlur stdDeviation="3"></feGaussianBlur>
@@ -234,6 +264,7 @@
       </filter>
     </svg>
     <div class="app-container">
+
       <!-- Header -->
       <div class="header">
         <a href="index.html" class="back-arrow"
@@ -243,13 +274,34 @@
           <div class="landmark-counter">Landmarks Found</div>
         </div>
       </div>
+<!-- Search bar + Favorites toggle -->
+<div class="toolbar">
+  <input
+    type="text"
+    id="search-input"
+    placeholder="🔍 Search landmarks..."
+  />
+  <!-- ADD THIS BUTTON: -->
+  <button id="favorites-toggle" class="filter-button"
+    style="position: relative; left: 10px; top: 10%;">
+    ☆ Favorites
+  </button>
+</div>
+
+      <!-- Distance filter -->
+      <div class="distance-filter">
+        <label>Min miles</label>
+        <input type="number" id="min-distance" value="0" step="0.1" />
+        <label>Max miles</label>
+        <input type="number" id="max-distance" value="5" step="0.1" />
+      </div>
 
       <!-- Filter bar with more neighborhoods -->
       <div class="filter-bar">
         <button class="filter-button" onclick="filterLandmarks('Nearby')">
           Nearby
-          
-        </button>
+          </button>
+         
         <button class="filter-button" onclick="filterLandmarks('Little Italy')">
           Little Italy
         </button>
@@ -286,7 +338,46 @@
     </div>
 
     <script>
-      let activeFilter = "";
+    // --- globals & DOM refs ---
+    
+let activeFilter      = "";                          // your filter-bar state
+let searchTerm        = "";                          // what’s typed in search
+let showFavoritesOnly = false;                       // favorites toggle state
+
+const searchInput     = document.getElementById('search-input');
+const minInput        = document.getElementById('min-distance');
+const maxInput        = document.getElementById('max-distance');
+const favToggle       = document.getElementById('favorites-toggle');
+
+const FAV_KEY         = 'landmark-favorites';
+let   favorites       = JSON.parse(localStorage.getItem(FAV_KEY)) || [];
+
+//Store all landmarks globally ---
+let allLandmarks = [];
+
+// --- wire up your inputs & buttons ---
+// SEARCH
+searchInput.addEventListener('input', e => {
+  searchTerm = e.target.value.trim().toLowerCase();
+  applyFiltersAndRender(allLandmarks);
+});
+
+// DISTANCE
+[minInput, maxInput].forEach(inp =>
+  inp.addEventListener('input', () => applyFiltersAndRender(allLandmarks))
+);
+
+// FAVORITES TOGGLE
+favToggle.addEventListener('click', () => {
+  showFavoritesOnly = !showFavoritesOnly;
+  favToggle.classList.toggle('active', showFavoritesOnly);
+  favToggle.textContent = showFavoritesOnly
+    ? '★ Only Favorites'
+    : '☆ Favorites';
+  localStorage.setItem(FAV_KEY, JSON.stringify(favorites));
+  applyFiltersAndRender(allLandmarks);
+});
+
 
       // Google Maps API variables
       let map, service;
@@ -453,8 +544,10 @@
         fetch("landmarks.JSON")
           .then((response) => response.json())
           .then((landmarks) => {
-            displayLandmarks(landmarks);
-            updateLandmarkCounter(landmarks); // Initial count
+            // displayLandmarks(landmarks);
+            // updateLandmarkCounter(landmarks); 
+            allLandmarks = landmarks; // Store all landmarks globally
+            applyFiltersAndRender(allLandmarks); // changed: use filtering function so search/distance/favorites work
           })
           .catch((error) => console.error("Error loading landmarks:", error));
             
@@ -695,8 +788,8 @@
           fetch("landmarks.JSON")
           .then((response) => response.json())
           .then((landmarks) => {
-            displayLandmarks(landmarks);
-            updateLandmarkCounter(landmarks); // Update count for filtered view
+            allLandmarks = landmarks; // changed: update global landmarks for filtering
+            applyFiltersAndRender(allLandmarks); // changed: use filtering function so search/distance/favorites work
           })
           .catch((error) => console.error("Error loading landmarks:", error));
         }
@@ -746,6 +839,44 @@
         console.log('User coordinates:', userCoords);
         console.log('=== END DEBUG ===');
       }
+
+  function applyFiltersAndRender(landmarks) {
+  const userCoords = JSON.parse(localStorage.getItem('currentUserCoords')) || {lat:0,lng:0};
+  const min = parseFloat(minInput.value);
+  const max = parseFloat(maxInput.value);
+
+  const filtered = landmarks.filter(lm => {
+    if (activeFilter   && lm.neighborhood !== activeFilter) return false;
+    if (searchTerm     && !lm.name.toLowerCase().includes(searchTerm)) return false;
+    const d = calculateDistance(
+      userCoords.lat, userCoords.lng,
+      lm.coordinates[0], lm.coordinates[1]
+    );
+    if (!isNaN(min) && d < min) return false;
+    if (!isNaN(max) && d > max) return false;
+    if (showFavoritesOnly && !favorites.includes(lm.id)) return false;
+    return true;
+  });
+
+  displayLandmarks(filtered);
+  updateLandmarkCounter(filtered);
+}
+
+// Add or remove a landmark from favorites and update localStorage
+function toggleFavorite(landmarkId) { // new: function to toggle favorite
+  const idx = favorites.indexOf(landmarkId); // new
+  if (idx === -1) { // new
+    favorites.push(landmarkId); // new
+  } else { // new
+    favorites.splice(idx, 1); // new
+  } // new
+  localStorage.setItem(FAV_KEY, JSON.stringify(favorites)); // new
+  applyFiltersAndRender(allLandmarks); // new: update UI if on main page
+} // new
+
+window.toggleFavorite = toggleFavorite; // new: expose for detail page usage
+
     </script>
   </body>
+</html>
 </html>

@@ -228,6 +228,58 @@
           const neighborhoodFolder = landmark.neighborhood.replace(/\s+/g, "");
           const imagePath = `images/${neighborhoodFolder}/${landmark.image}`;
           document.getElementById("landmark-image").src = imagePath;
+
+          // --- Add favorite button ---
+          // Create the button
+          const favBtn = document.createElement("button"); // new
+          favBtn.id = "favorite-btn"; // new
+          favBtn.style.position = "absolute"; // new
+          favBtn.style.top = "20px"; // new
+          favBtn.style.right = "20px"; // new
+          favBtn.style.background = "none"; // new
+          favBtn.style.border = "none"; // new
+          favBtn.style.fontSize = "30px"; // new
+          favBtn.style.cursor = "pointer"; // new
+
+          // Get favorites from localStorage (same key as main page)
+          const FAV_KEY = "landmark-favorites"; // new
+          let favorites = JSON.parse(localStorage.getItem(FAV_KEY)) || []; // new
+
+          function updateFavBtn() { // new
+            if (favorites.includes(landmarkId)) { // new
+              favBtn.innerHTML = "&#9733;"; // filled star
+              favBtn.title = "Remove from Favorites";
+              favBtn.style.color = "#168ce1";
+            } else { // new
+              favBtn.innerHTML = "&#9734;"; // empty star
+              favBtn.title = "Add to Favorites";
+              favBtn.style.color = "#888";
+            }
+          }
+          
+          updateFavBtn(); // new
+
+          favBtn.onclick = function () { // new
+            // Call global toggleFavorite if available, else do it here
+            if (window.toggleFavorite) { // new
+              window.toggleFavorite(landmarkId); // new
+              // Sync local state for button
+              favorites = JSON.parse(localStorage.getItem(FAV_KEY)) || [];
+              updateFavBtn();
+            } else { // fallback if opened directly
+              const idx = favorites.indexOf(landmarkId);
+              if (idx === -1) {
+                favorites.push(landmarkId);
+              } else {
+                favorites.splice(idx, 1);
+              }
+              localStorage.setItem(FAV_KEY, JSON.stringify(favorites));
+              updateFavBtn();
+            }
+          };
+
+          document.querySelector(".image-container").appendChild(favBtn); // new
+          // --- end favorite button ---
         })
         .catch((error) => console.error("Error loading landmarks:", error));
 
